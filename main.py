@@ -6,6 +6,7 @@
 # ------------------------------------
 import argparse
 import logging
+from tools.data_util import process
 from common.use_logging import enable_log
 
 
@@ -20,3 +21,8 @@ if __name__ == '__main__':
     arg_parser.add_argument('--head_cnt', default=20, type=int)
     arg_parser.add_argument('--mode', default='train')
     arg_parser.add_argument('-l', '--log_level', default='DEBUG')
+    arg_parser.add_argument('--step', default='prepro')
+    args = arg_parser.parse_args()
+
+    if args.step == 'prepro':
+        process(args)

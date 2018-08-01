@@ -9,7 +9,7 @@ import sys
 import json
 import logging
 from tqdm import tqdm
-from time_eval import time_count
+from tools.time_eval import time_count
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(CURRENT_DIR, '../data/new_data/')
@@ -45,26 +45,27 @@ def read_corpus(corpus_path, line_seperator=',', cont_sep=' ', target_index=0, l
 
 
 @time_count
-def generate_wordmap(word_map_file, data_dir=DEFAULT_PATH, refresh=False):
-    if not os.path.exists(data_dir):
-        print('invalid annotated data directory: {}'.format(data_dir))
-        sys.exit(-1)
+def generate_wordmap(word_map_file, data_dir=DEFAULT_PATH, target_index=1, refresh=False):
+    for _dir in data_dir:
+        if not os.path.exists(_dir):
+            print('invalid annotated data directory: {}'.format(data_dir))
+            sys.exit(-1)
 
     if os.path.exists(word_map_file) and not refresh:
         LOGGER.info('File {} exists. Set refresh to true regenerate word map'.format(word_map_file))
-        return json.load(word_map_file)
+        return json.load(open(word_map_file))
 
     word2idx = {'PAD': 0, 'SOS': 1, 'EOS': 2, 'UNK': 3}
     idx2word = {0: 'PAD', 1: 'SOS', 2: 'EOS', 3: 'UNK'}
     word_cnt = len(word2idx)
 
     for corpus_file in data_dir:
-        with open(corpus_file, 'rb') as fr:
+        with open(corpus_file, 'r') as fr:
             lines = fr.readlines()
-            for line in lines:
-                line = line.strip()
-                words = list(line)
-                for word in words:
+            for line in tqdm(lines[1:]):
+                line = line.strip().split(',')
+                words = line[target_index]
+                for word in words.split():
                     if word not in word2idx:
                         word2idx[word] = word_cnt
                         idx2word[word_cnt] = word
@@ -104,7 +105,7 @@ def write_data(data, file_path):
 @time_count
 def generate_dl_data(corpus, args, word_map, max_para_len=1000, dev_ratio=0.1):
     if word_map is None:
-        LOGGER.info('word map is None!')
+        LOGGER.error('word map is None!')
         return
 
     print('corpus size:', len(corpus))
@@ -114,8 +115,7 @@ def generate_dl_data(corpus, args, word_map, max_para_len=1000, dev_ratio=0.1):
 
     dev_buffer = list()
     train_buffer = list()
-    cnt = 1
-    for sample in tqdm(corpus):
+    for cnt, sample in tqdm(enumerate(corpus, 1)):
         if 'para' not in sample:
             continue
         para = sample.get('para')
@@ -137,16 +137,15 @@ def generate_dl_data(corpus, args, word_map, max_para_len=1000, dev_ratio=0.1):
 
 
 def process(args):
+    # tokens map
     word_or_char = args.data_format
-    word_map = generate_wordmap('token_map_' + word_or_char)
+    target_index = 1 if word_or_char == 'char' else 2
+    word_map = generate_wordmap('token_map_' + word_or_char, target_index=target_index)
 
+    # corpus
     is_train = True if args.mode == 'train' else False
     corpus_file = DEFAULT_PATH[0] if is_train else DEFAULT_PATH[1]
-
-    if word_or_char == 'char':
-        corpus_size, corpus = read_corpus(corpus_file, target_index=1)
-    else:
-        corpus_size, corpus = read_corpus(corpus_file, target_index=2)
+    corpus_size, corpus = read_corpus(corpus_file, target_index=target_index)
 
     size = generate_dl_data(corpus, args, word_map)
     print(size)

@@ -13,7 +13,7 @@ PID = os.getpid()
 CURRENT_DIRECTORY = os.path.dirname(os.path.abspath(__file__))  # get absolutely directory of this file
 
 
-def enable_log(level=logging.DEBUG):
+def set_level(level=logging.DEBUG):
     # console output
     logger = logging.getLogger()
     logger.setLevel(level)

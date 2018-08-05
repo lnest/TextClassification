@@ -59,8 +59,9 @@ def explore_data(data_path=DEFAULT_PATH[1], line_seperator=',', cont_sep=' ', ta
 
             # train dataset has a lable, conversely test dataset is not
             if isinstance(label_index, int) and label_index < len(conts):
-                corpus.append({'para': target_words, 'lable': int(conts[label_index]), 'id': corpus_size})  # id starts with 1
+                corpus.append({'para': target_words, 'label': int(conts[label_index]), 'id': corpus_size})  # id starts with 1
             else:
+                print('here')
                 corpus.append({'para': target_words, 'id': corpus_size})
     return tf, df, corpus_size, corpus
 
@@ -69,8 +70,8 @@ def count_label(corpus):
     label_cnt = dict()
     for para in corpus:
         label = para.get('label')
-        label_cnt.setdefault(str(label), 0)
-        label_cnt[str(label)] += 1
+        label_cnt.setdefault(label, 0)
+        label_cnt[label] += 1
     return label_cnt
 
 
@@ -98,7 +99,7 @@ def explore(args):
     label_cnt = count_label(corpus_word)
     json.dump(label_cnt, open(os.path.join(args.dinfo_path, 'label_cnt'), 'w'))
     series = pd.Series(label_cnt)
-    print('label cnt info:\n', series.div(words_size))
+    print('label cnt info:\n', series.div(words_size).sort_index())
 
     tf_seg_word, df_seg_word, seg_size, corpus_seg = explore_data(target_index=2, label_index=-1)
     seg_corpus_info = show_data(tf_seg_word, df_seg_word, seg_size, head_num=100)

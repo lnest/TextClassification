@@ -7,10 +7,11 @@
 
 import os
 import sys
+import json
 import logging
 import pandas as pd
 from tqdm import tqdm
-from time_eval import time_count
+from tools.time_eval import time_count
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(CURRENT_DIR, '../data/new_data/')
@@ -57,20 +58,48 @@ def explore_data(data_path=DEFAULT_PATH[1], line_seperator=',', cont_sep=' ', ta
             corpus_size += 1
 
             # train dataset has a lable, conversely test dataset is not
-            if isinstance(label_index, int) and 0 <= label_index < len(conts):
+            if isinstance(label_index, int) and label_index < len(conts):
                 corpus.append({'para': target_words, 'lable': int(conts[label_index]), 'id': corpus_size})  # id starts with 1
             else:
                 corpus.append({'para': target_words, 'id': corpus_size})
     return tf, df, corpus_size, corpus
 
 
+def count_label(corpus):
+    label_cnt = dict()
+    for para in corpus:
+        label = para.get('label')
+        label_cnt.setdefault(str(label), 0)
+        label_cnt[str(label)] += 1
+    return label_cnt
+
+
 def show_data(tf, df, corpus_size, head_num=20):
     dataframe = pd.DataFrame({'tf': tf, 'df': df})
     dataframe = dataframe / corpus_size
     sorted_df = dataframe.sort_values(by=['df'], ascending=False)
-    head_df = sorted_df.head(head_num)
-    return head_df
+    print('df tf info:\n', sorted_df.head(head_num))
+    return sorted_df
 
 
 def save_df(save_path, df):
     df.to_csv(save_path)
+
+
+def explore(args):
+
+    if not os.path.exists(args.dinfo_path):
+        os.makedirs(args.dinfo_path)
+
+    # get tf, df without normaliztion
+    tf_word, df_word, words_size, corpus_word = explore_data(target_index=1, label_index=-1)
+    word_corpus_info = show_data(tf_word, df_word, words_size, head_num=20)
+    save_df(os.path.join(args.dinfo_path, 'word_corpus_info'), word_corpus_info)
+    label_cnt = count_label(corpus_word)
+    json.dump(label_cnt, open(os.path.join(args.dinfo_path, 'label_cnt'), 'w'))
+    series = pd.Series(label_cnt)
+    print('label cnt info:\n', series.div(words_size))
+
+    tf_seg_word, df_seg_word, seg_size, corpus_seg = explore_data(target_index=2, label_index=-1)
+    seg_corpus_info = show_data(tf_seg_word, df_seg_word, seg_size, head_num=100)
+    save_df(os.path.join(args.dinfo_path, 'seg_corpus_info'), seg_corpus_info)

@@ -6,7 +6,9 @@
 # ------------------------------------
 import argparse
 import logging
+
 from tools.data_util import process
+from tools.explore_data import explore
 from common.use_logging import set_level
 
 
@@ -24,6 +26,7 @@ if __name__ == '__main__':
     arg_parser.add_argument('--mode', default='train')
     arg_parser.add_argument('-l', '--log_level', default='DEBUG')
     arg_parser.add_argument('--step', default='prepro')
+    arg_parser.add_argument('--dinfo_path', default='data/dinfo')
     args = arg_parser.parse_args()
 
     # set logging
@@ -32,3 +35,5 @@ if __name__ == '__main__':
 
     if args.step == 'prepro':
         process(args)
+    elif args.step == 'explore':
+        explore(args)

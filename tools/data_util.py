@@ -18,7 +18,7 @@ LOGGER = logging.getLogger()
 
 
 @time_count
-def read_corpus(corpus_path, line_seperator=',', cont_sep=' ', target_index=0, label_index=None, has_header=True):
+def read_corpus(corpus_path, line_seperator=',', cont_sep=' ', article_index=0, segged_index=1, label_index=None, has_header=True):
     corpus_size = 0
     corpus = list()
     if not os.path.exists(corpus_path):
@@ -27,20 +27,25 @@ def read_corpus(corpus_path, line_seperator=',', cont_sep=' ', target_index=0, l
 
     for line in tqdm(open(corpus_path).readlines()):
 
+        article , segged_word = (None, None)
         # skip first line
         if corpus_size == 0 and has_header:
             has_header = False
             continue
         conts = line.strip().split(line_seperator)
-        if target_index < len(conts):
-            target_words = conts[target_index].strip().split(cont_sep)
-            corpus_size += 1
+        if article_index < len(conts):
+            article = conts[article_index].strip().split(cont_sep)
 
+        if segged_index < len(conts):
+            segged_word = conts[segged_index].strip().split(cont_sep)
+
+        if article and segged_word:
             # train dataset has a lable, conversely test dataset is not
-            if isinstance(label_index, int) and 0 <= label_index < len(conts):
-                corpus.append({'para': target_words, 'lable': int(conts[label_index]), 'id': corpus_size})  # id starts with 1
+            if isinstance(label_index, int) and label_index < len(conts):
+                corpus.append({'para': article, 'segged_word': segged_word, 'lable': int(conts[label_index]), 'id': corpus_size})  # id starts with 1
             else:
-                corpus.append({'para': target_words, 'id': corpus_size})
+                corpus.append({'para': article, 'segged_word': segged_word, 'id': corpus_size})
+            corpus_size += 1
     return corpus_size, corpus
 
 
@@ -52,7 +57,7 @@ def generate_wordmap(word_map_file, data_dir=DEFAULT_PATH, target_index=1, refre
             sys.exit(-1)
 
     if os.path.exists(word_map_file) and not refresh:
-        LOGGER.info('File {} exists. Set refresh to true regenerate word map'.format(word_map_file))
+        LOGGER.info('File {} exists. Set refresh true to regenerate word map'.format(word_map_file))
         return json.load(open(word_map_file))
 
     word2idx = {'PAD': 0, 'SOS': 1, 'EOS': 2, 'UNK': 3}
@@ -93,6 +98,15 @@ def add_pad(ids, uniform_size):
     return ids
 
 
+def corpus2idx(corpus, key, word_map, max_para_len=None):
+    para = corpus.get(key)
+    para = token2idx(para, word_map)
+    if max_para_len:
+        para = add_pad(para, max_para_len)
+    corpus[key] = para
+    return corpus
+
+
 def write_data(data, file_path):
     if data:
         f = open(file_path, 'w')
@@ -102,8 +116,14 @@ def write_data(data, file_path):
         LOGGER.info('EMPTY DATA!')
 
 
+def get_corpus_feature():
+    """ get the first 100 words by tf-idf
+    
+    :return: 
+    """
+
 @time_count
-def generate_dl_data(corpus, args, word_map, max_para_len=1000, dev_ratio=0.1):
+def generate_dl_data(corpus, args, word_map, segged_map=None, max_para_len=None, dev_ratio=0.1):
     if word_map is None:
         LOGGER.error('word map is None!')
         return
@@ -116,12 +136,10 @@ def generate_dl_data(corpus, args, word_map, max_para_len=1000, dev_ratio=0.1):
     dev_buffer = list()
     train_buffer = list()
     for cnt, sample in tqdm(enumerate(corpus, 1)):
-        if 'para' not in sample:
+        if 'para' not in sample or 'segged_word' not in sample:
             continue
-        para = sample.get('para')
-        para = token2idx(para, word_map)
-        ids = add_pad(para, max_para_len)
-        sample['para'] = ids
+        sample = corpus2idx(sample, 'para', word_map, max_para_len)
+        sample = corpus2idx(sample, 'segged_word', segged_map, max_para_len)
         str_sample = json.dumps(sample)
         if pivot > 0 and cnt <= pivot:
             dev_buffer.append(str_sample)
@@ -138,14 +156,12 @@ def generate_dl_data(corpus, args, word_map, max_para_len=1000, dev_ratio=0.1):
 
 def process(args):
     # tokens map
-    word_or_char = args.data_format
-    target_index = 1 if word_or_char == 'char' else 2
-    word_map = generate_wordmap('token_map_' + word_or_char, target_index=target_index)
-
+    word_map = generate_wordmap('./data/maps/token_map_char', target_index=1)
+    segged_map = generate_wordmap('./data/maps/token_map_word', target_index=2)
     # corpus
     is_train = True if args.mode == 'train' else False
     corpus_file = DEFAULT_PATH[0] if is_train else DEFAULT_PATH[1]
-    corpus_size, corpus = read_corpus(corpus_file, target_index=target_index)
+    corpus_size, corpus = read_corpus(corpus_file, article_index=1, segged_index=2)
 
-    size = generate_dl_data(corpus, args, word_map)
+    size = generate_dl_data(corpus, args, word_map, segged_map)
     print(size)

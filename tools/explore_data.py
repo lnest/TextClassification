@@ -61,7 +61,6 @@ def explore_data(data_path=DEFAULT_PATH[1], line_seperator=',', cont_sep=' ', ta
             if isinstance(label_index, int) and label_index < len(conts):
                 corpus.append({'para': target_words, 'label': int(conts[label_index]), 'id': corpus_size})  # id starts with 1
             else:
-                print('here')
                 corpus.append({'para': target_words, 'id': corpus_size})
     return tf, df, corpus_size, corpus
 
@@ -87,20 +86,34 @@ def save_df(save_path, df):
     df.to_csv(save_path)
 
 
-def explore(args):
+def get_stop_words(corpus_info, stop_words_path='./data/dinfo/stop_words_word', df_threshold_max=0.5, df_threshold_min=0.000010, refresh=False):
+    if os.path.exists(stop_words_path) and refresh is False:
+        logger.info('Stop words path exist. Set refresh true to regenerate word map')
+        return set(json.load(open(stop_words_path)))
+    df_upper = corpus_info[corpus_info['df'] > df_threshold_max]
+    df_lower = corpus_info[corpus_info['df'] < df_threshold_min]
+    stop_words = set(df_upper.index).union(df_lower.index)
+    json.dump(list(stop_words), open(stop_words_path, 'w'))
+    return stop_words
 
+
+def explore(args):
     if not os.path.exists(args.dinfo_path):
         os.makedirs(args.dinfo_path)
 
     # get tf, df without normaliztion
-    tf_word, df_word, words_size, corpus_word = explore_data(target_index=1, label_index=-1)
-    word_corpus_info = show_data(tf_word, df_word, words_size, head_num=20)
+    tf_word, df_word, corpus_size, corpus_word = explore_data(target_index=1, label_index=-1)
+    word_corpus_info = show_data(tf_word, df_word, corpus_size, head_num=20)
     save_df(os.path.join(args.dinfo_path, 'word_corpus_info'), word_corpus_info)
+    get_stop_words(word_corpus_info, os.path.join(args.dinfo_path, 'stop_words'))
+
     label_cnt = count_label(corpus_word)
+    label_cnt.update({-1: corpus_size})
     json.dump(label_cnt, open(os.path.join(args.dinfo_path, 'label_cnt'), 'w'))
     series = pd.Series(label_cnt)
-    print('label cnt info:\n', series.div(words_size).sort_index())
+    print('label cnt info:\n', series.div(corpus_size).sort_index())
 
-    tf_seg_word, df_seg_word, seg_size, corpus_seg = explore_data(target_index=2, label_index=-1)
-    seg_corpus_info = show_data(tf_seg_word, df_seg_word, seg_size, head_num=100)
+    tf_seg_word, df_seg_word, seg_corpus_size, corpus_seg = explore_data(target_index=2, label_index=-1)
+    seg_corpus_info = show_data(tf_seg_word, df_seg_word, seg_corpus_size, head_num=20)
     save_df(os.path.join(args.dinfo_path, 'seg_corpus_info'), seg_corpus_info)
+    get_stop_words(seg_corpus_info, os.path.join(args.dinfo_path, 'stop_words_segged'))

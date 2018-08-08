@@ -35,6 +35,7 @@ def explore_data(data_path=DEFAULT_PATH[1], line_seperator=',', cont_sep=' ', ta
     tf = dict()
     corpus_size = 0
     corpus = list()
+    article_len = list()
     if not os.path.exists(data_path):
         logger.warning('path {} do not exsit!'.format(data_path))
         sys.exit(1)
@@ -48,6 +49,7 @@ def explore_data(data_path=DEFAULT_PATH[1], line_seperator=',', cont_sep=' ', ta
         conts = line.strip().split(line_seperator)
         if target_index < len(conts):
             target_words = conts[target_index].strip().split(cont_sep)
+            article_len.append(len(target_words))
             uniq_words = set(target_words)
             for word in target_words:
                 tf.setdefault(word, 0)
@@ -62,7 +64,7 @@ def explore_data(data_path=DEFAULT_PATH[1], line_seperator=',', cont_sep=' ', ta
                 corpus.append({'para': target_words, 'label': int(conts[label_index]), 'id': corpus_size})  # id starts with 1
             else:
                 corpus.append({'para': target_words, 'id': corpus_size})
-    return tf, df, corpus_size, corpus
+    return tf, df, corpus_size, corpus, article_len
 
 
 def count_label(corpus):
@@ -102,7 +104,7 @@ def explore(args):
         os.makedirs(args.dinfo_path)
 
     # get tf, df without normaliztion
-    tf_word, df_word, corpus_size, corpus_word = explore_data(target_index=1, label_index=-1)
+    tf_word, df_word, corpus_size, corpus_word, article_len = explore_data(target_index=1, label_index=-1)
     word_corpus_info = show_data(tf_word, df_word, corpus_size, head_num=20)
     save_df(os.path.join(args.dinfo_path, 'word_corpus_info'), word_corpus_info)
     get_stop_words(word_corpus_info, os.path.join(args.dinfo_path, 'stop_words'))
@@ -113,7 +115,10 @@ def explore(args):
     series = pd.Series(label_cnt)
     print('label cnt info:\n', series.div(corpus_size).sort_index())
 
-    tf_seg_word, df_seg_word, seg_corpus_size, corpus_seg = explore_data(target_index=2, label_index=-1)
+    tf_seg_word, df_seg_word, seg_corpus_size, corpus_seg, article_len_segged = explore_data(target_index=2, label_index=-1)
     seg_corpus_info = show_data(tf_seg_word, df_seg_word, seg_corpus_size, head_num=20)
     save_df(os.path.join(args.dinfo_path, 'seg_corpus_info'), seg_corpus_info)
     get_stop_words(seg_corpus_info, os.path.join(args.dinfo_path, 'stop_words_segged'))
+
+    corpus_len_df = pd.DataFrame({'word': article_len, 'segged': article_len_segged})
+    save_df(os.path.join(args.dinfo_path, 'corpus_len_distribution'), corpus_len_df)

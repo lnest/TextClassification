@@ -33,4 +33,4 @@ class TimeCountBlock:
     def __exit__(self, type, value, traceback):
         self._end = time.time()
         self._timepast = self._end - self._start
-        print(u'{} : {}'.format(self._name, round(self._timepast, 3)))
+        print(u'{} : {}'.format(self._name, round(self._timepast, 5)))

@@ -135,10 +135,11 @@ def get_corpus_feature(idf, article, token2idx_map, feature_len=100, stop_words=
     filter_words = list()
     tf = get_tf(article)
     tf_idf = tf.mul(idf)
-    with TimeCountBlock('get keep_index'):
-        if stop_words is not None:
+    if stop_words is not None:
+        with TimeCountBlock('keep_index'):
             tf_idf_index = set(tf_idf.index)
             keep_index = tf_idf_index.difference(stop_words)
+        with TimeCountBlock('tf_idf'):
             tf_idf = tf_idf[tf_idf.index.isin(keep_index)]
     with TimeCountBlock('sort_values'):
         feature_index = tf_idf.sort_values(ascending=False).head(feature_len).index
@@ -173,6 +174,8 @@ def generate_dl_data(corpus, args, word_map, segged_map=None, idf=None, stop_wor
             with TimeCountBlock(name='get_corpus_feature_para'):
                 sample['para'] = get_corpus_feature(idf.get('word'), sample['para'], word_map, max_para_len, stop_words)
             sample['segged_words'] = get_corpus_feature(idf.get('segged'), sample['segged_word'], segged_map, max_para_len, segged_stop_words)
+        if cnt >= 3:
+            break
         str_sample = json.dumps(sample)
         if pivot > 0 and cnt <= pivot:
             dev_buffer.append(str_sample)

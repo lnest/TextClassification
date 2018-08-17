@@ -11,7 +11,7 @@ import pandas as pd
 import logging
 import numpy as np
 from tqdm import tqdm
-from tools.time_eval import time_count, TimeCountBlock
+from tools.time_eval import time_count
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(CURRENT_DIR, '../data/new_data/')
@@ -20,7 +20,8 @@ LOGGER = logging.getLogger()
 
 
 @time_count
-def read_corpus(corpus_path, line_seperator=',', cont_sep=' ', stop_words=None, segged_stop_words=None, article_index=0, segged_index=1, label_index=None, has_header=True):
+def read_corpus(corpus_path, line_seperator=',', cont_sep=' ', stop_words=None, segged_stop_words=None, article_index=0,
+                segged_index=1, label_index=None, has_header=True):
     corpus_size = 0
     corpus = list()
     if not os.path.exists(corpus_path):
@@ -62,7 +63,7 @@ def read_corpus(corpus_path, line_seperator=',', cont_sep=' ', stop_words=None, 
 
 
 @time_count
-def generate_wordmap(word_map_file, data_dir=DEFAULT_PATH, target_index=1, refresh=False):
+def generate_wordmap(word_map_file, data_dir=DEFAULT_PATH, target_index=1, refresh=False, stop_words=None):
     for _dir in data_dir:
         if not os.path.exists(_dir):
             print('invalid annotated data directory: {}'.format(data_dir))
@@ -83,6 +84,8 @@ def generate_wordmap(word_map_file, data_dir=DEFAULT_PATH, target_index=1, refre
                 line = line.strip().split(',')
                 words = line[target_index]
                 for word in words.split():
+                    if word in stop_words:
+                        continue
                     if word not in word2idx:
                         word2idx[word] = word_cnt
                         idx2word[word_cnt] = word
@@ -135,12 +138,11 @@ def get_tf(article):
         tf.setdefault(token, 0)
         tf[token] += 1
     tf_series = pd.Series(tf)
-    with TimeCountBlock('tf div article'):
-        tf_series = tf_series.div(len(article))
+    # with TimeCountBlock('tf div article'):
+    tf_series = tf_series.div(len(article))
     return tf_series
 
 
-@time_count
 def get_corpus_feature(idf, article, token2idx_map, feature_len=100):
     """ get the first 100 words by tf-idf
     :return:
@@ -148,15 +150,15 @@ def get_corpus_feature(idf, article, token2idx_map, feature_len=100):
     # with TimeCountBlock('get tf'):
     tf = get_tf(article)
     # with TimeCountBlock('get idf'):
-    LOGGER.debug('tf shape: {}'.format(tf.shape))
-    LOGGER.debug('idf shape: {}'.format(idf.shape))
-    tf_idf = tf.mul(idf)
-    
-    with TimeCountBlock('sort_values'):
-        feature_index = tf_idf.nlargest(feature_len).index
+    # LOGGER.debug('tf shape: {}'.format(tf.shape))
+    # LOGGER.debug('idf shape: {}'.format(idf.shape))
+    tf_idf = idf.mul(tf, fill_value=0)
+
+    # with TimeCountBlock('sort_values'):
+    feature_index = tf_idf.nlargest(feature_len).index
     filter_words = [word for word in article if word in feature_index]
-    with TimeCountBlock('corpus2idx'):
-        filter_idx = corpus2idx(filter_words, token2idx_map, max_para_len=feature_len)
+    # with TimeCountBlock('corpus2idx'):
+    filter_idx = corpus2idx(filter_words, token2idx_map, max_para_len=feature_len)
     return filter_idx
 
 
@@ -166,7 +168,7 @@ def generate_dl_data(corpus, args, word_map, segged_map=None, idf=None, max_para
         LOGGER.error('word map is None!')
         return
 
-    print('corpus size:', len(corpus))
+    LOGGER.debug('corpus size: {}'.format(len(corpus)))
     pivot = -1
     if args.mode == 'train':
         pivot = int(dev_ratio * len(corpus))
@@ -187,7 +189,8 @@ def generate_dl_data(corpus, args, word_map, segged_map=None, idf=None, max_para
             dev_buffer.append(str_sample)
         else:
             train_buffer.append(str_sample)
-
+        # if cnt >= 3:
+        #     break
     train_data = '\n'.join(train_buffer)
     dev_data = '\n'.join(dev_buffer)
     write_data(train_data, '_'.join([args.idx_path, args.mode]))
@@ -213,15 +216,16 @@ def get_idf(corpus_info_path):
 
 
 def process(args):
-    # tokens map
-    word_map = generate_wordmap('./data/maps/token_map_char', target_index=1)
-    segged_map = generate_wordmap('./data/maps/token_map_word', target_index=2)
 
     # stop words
     segged_stop_words_path = os.path.join(args.dinfo_path, 'stop_words_segged')
     segged_stop_words = load_stop_words(segged_stop_words_path)
     stop_words_path = os.path.join(args.dinfo_path, 'stop_words')
     stop_words = load_stop_words(stop_words_path)
+
+    # tokens map
+    word_map = generate_wordmap('./data/maps/token_map_char', target_index=1, refresh=True, stop_words=stop_words)
+    segged_map = generate_wordmap('./data/maps/token_map_word', target_index=2, refresh=True, stop_words=segged_stop_words)
 
     # corpus
     is_train = True if args.mode == 'train' else False

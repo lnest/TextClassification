@@ -9,7 +9,7 @@ import tensorflow as tf
 import model.func as F
 
 
-class BaseModel:
+class Base:
     def __init__(self, args, batch_data):
         self.segged, self.word, self.data_id, self.label = batch_data
         self.is_train = tf.get_variable("is_train", shape=[], dtype=tf.bool, trainable=False)
@@ -25,8 +25,7 @@ class BaseModel:
                 embeddings_segg = tf.Variable(tf.random_uniform([self.args.segg_size, self.args.segg_hidden], -1.0, 1.0))
                 segg_emb = tf.nn.embedding_lookup(embeddings_segg, self.segged)
 
-
-            # context_emb = tf.concat([word_emb, segg_emb], axis=2)
+            context_emb = tf.concat([word_emb, segg_emb], axis=2)
             # context_emb = F.highway(context_emb, 128, scope="highway")
 
         with tf.variable_scope('word_conv_pool'):
